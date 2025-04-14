@@ -2,20 +2,48 @@
 using namespace std;
 
 Optional<Set<int>> makeTarget(const Set<int>& elems, int target) {
-    /* TODO: Delete this comment and the next few lines, then implement this
-     * function.
-     */
-    (void) elems;
-    (void) target;
+    // Base case: target is 0 → success with empty set
+    if (target == 0) return {};
+
+    // Base case: no more elements to choose from
+    if (elems.isEmpty()) return Nothing;
+
+    // Recursive step: try including or excluding the first element
+    int first = elems.first();
+    Set<int> rest = elems;
+    rest.remove(first);
+
+    // Try including the first element
+    Optional<Set<int>> with = makeTarget(rest, target - first);
+    if (with != Nothing) {
+        with.value().add(first);
+        return with;
+    }
+
+    // Try excluding the first element
+    Optional<Set<int>> without = makeTarget(rest, target);
+    if (without != Nothing) {
+        return without;
+    }
+
+    // No solution found
     return Nothing;
 }
-
 /* * * * * Test Cases Below This Point * * * * */
 #include "GUI/SimpleTest.h"
 
-/* TODO: Add at least one custom test here, then delete this comment. */
 
+STUDENT_TEST("Custom test with negative numbers and multiple solutions") {
+    Set<int> nums = {3, -2, 7, 1};
+    Optional<Set<int>> result = makeTarget(nums, 5);
+    EXPECT(result != Nothing);
 
+    int total = 0;
+    for (int n : result.value()) {
+        total += n;
+    }
+    EXPECT_EQUAL(total, 5);
+}
 
 
 /* * * * * Provided Tests Below This Point * * * * */

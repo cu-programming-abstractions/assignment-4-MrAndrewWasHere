@@ -2,23 +2,95 @@
 using namespace std;
 
 int numSchedulesFor(const Set<Shift>& shifts, int maxHours) {
-    /* TODO: Delete this comment and the lines below it, then implement
-     * this function.
-     */
-    (void) shifts;
-    (void) maxHours;
-    return -1;
+    if (maxHours < 0) {
+        error("maxHours cannot be negative.");
+    }
+
+    Vector<Shift> shiftList;
+    for (Shift s : shifts) {
+        shiftList += s;
+    }
+
+    std::function<int(int, int, Set<Shift>)> countSchedules =
+        [&](int index, int hoursUsed, Set<Shift> chosen) -> int {
+        if (index == shiftList.size()) {
+            return 1;
+        }
+
+        int total = 0;
+        Shift curr = shiftList[index];
+
+        // Option 1: exclude current shift
+        total += countSchedules(index + 1, hoursUsed, chosen);
+
+        // Option 2: include current shift if no overlap and fits in time
+        bool overlaps = false;
+        for (Shift s : chosen) {
+            if (overlapsWith(s, curr)) {
+                overlaps = true;
+                break;
+            }
+        }
+
+        if (!overlaps && hoursUsed + lengthOf(curr) <= maxHours) {
+            Set<Shift> newChosen = chosen;
+            newChosen.add(curr);
+            total += countSchedules(index + 1, hoursUsed + lengthOf(curr), newChosen);
+        }
+
+        return total;
+    };
+
+    return countSchedules(0, 0, {});
 }
 
 Set<Shift> maxProfitSchedule(const Set<Shift>& shifts, int maxHours) {
-    /* TODO: Delete this comment and the lines below it, then implement
-     * this function.
-     */
-    (void) shifts;
-    (void) maxHours;
-    return {};
-}
+    if (maxHours < 0) {
+        error("maxHours cannot be negative.");
+    }
 
+    Vector<Shift> shiftList;
+    for (Shift s : shifts) {
+        shiftList += s;
+    }
+
+    std::function<Set<Shift>(int, int, Set<Shift>)> bestSchedule =
+        [&](int index, int hoursUsed, Set<Shift> chosen) -> Set<Shift> {
+        if (index == shiftList.size()) {
+            return chosen;
+        }
+
+        Shift curr = shiftList[index];
+
+        // Option 1: exclude current shift
+        Set<Shift> without = bestSchedule(index + 1, hoursUsed, chosen);
+
+        // Option 2: include current shift if valid
+        Set<Shift> with = {};
+        bool overlaps = false;
+        for (Shift s : chosen) {
+            if (overlapsWith(s, curr)) {
+                overlaps = true;
+                break;
+            }
+        }
+
+        if (!overlaps && hoursUsed + lengthOf(curr) <= maxHours) {
+            Set<Shift> newChosen = chosen;
+            newChosen.add(curr);
+            with = bestSchedule(index + 1, hoursUsed + lengthOf(curr), newChosen);
+        }
+
+        // Compare profits
+        int profitWith = 0, profitWithout = 0;
+        for (Shift s : with) profitWith += profitFor(s);
+        for (Shift s : without) profitWithout += profitFor(s);
+
+        return (profitWith > profitWithout) ? with : without;
+    };
+
+    return bestSchedule(0, 0, {});
+}
 
 
 
@@ -30,6 +102,54 @@ Set<Shift> maxProfitSchedule(const Set<Shift>& shifts, int maxHours) {
  */
 
 
+STUDENT_TEST("numSchedulesFor handles empty shift list with non-zero hours") {
+    Set<Shift> shifts;
+    EXPECT_EQUAL(numSchedulesFor(shifts, 10), 1); // Only the empty schedule is valid
+}
+
+STUDENT_TEST("numSchedulesFor works with three non-overlapping shifts") {
+    Set<Shift> shifts = {
+        { Day::MONDAY, 8, 10 },
+        { Day::TUESDAY, 10, 12 },
+        { Day::WEDNESDAY, 12, 14 }
+    };
+    EXPECT_EQUAL(numSchedulesFor(shifts, 6), 8); // 2^3 possible combinations
+}
+
+STUDENT_TEST("numSchedulesFor excludes overlapping combinations") {
+    Set<Shift> shifts = {
+        { Day::THURSDAY, 8, 12 },
+        { Day::THURSDAY, 10, 14 },
+        { Day::FRIDAY, 8, 10 }
+    };
+    // Valid: {}, {1}, {2}, {3}, {1+3}, {2+3}
+    EXPECT_EQUAL(numSchedulesFor(shifts, 10), 6);
+}
+
+STUDENT_TEST("maxProfitSchedule selects highest value shift (can be combined with others)") {
+    Set<Shift> shifts = {
+        { Day::MONDAY, 9, 17, 1000 },
+        { Day::TUESDAY, 10, 14, 500 }
+    };
+    Set<Shift> result = maxProfitSchedule(shifts, 24);
+
+    EXPECT(result.contains({ Day::MONDAY, 9, 17, 1000 }));
+    EXPECT(result.contains({ Day::TUESDAY, 10, 14, 500 }));
+    EXPECT_EQUAL(result.size(), 2);
+}
+
+STUDENT_TEST("maxProfitSchedule combines smaller shifts for higher value") {
+    Set<Shift> shifts = {
+        { Day::MONDAY, 8, 12, 40 },
+        { Day::MONDAY, 12, 16, 45 },
+        { Day::MONDAY, 8, 16, 80 } // same hours as above but less value
+    };
+    Set<Shift> expected = {
+        { Day::MONDAY, 8, 12, 40 },
+        { Day::MONDAY, 12, 16, 45 }
+    };
+    EXPECT_EQUAL(maxProfitSchedule(shifts, 8), expected);
+}
 
 
 

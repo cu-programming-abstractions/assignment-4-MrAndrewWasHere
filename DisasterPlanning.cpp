@@ -1,14 +1,60 @@
 #include "DisasterPlanning.h"
 using namespace std;
 
+// Forward declare helper
+bool isCovered(const string& city,
+               const Map<string, Set<string>>& roadNetwork,
+               const Set<string>& supplyLocations);
+
 Optional<Set<string>> placeEmergencySupplies(const Map<string, Set<string>>& roadNetwork,
                                              int numCities) {
-    /* TODO: Delete this comment and next few lines, then implement this function. */
-    (void) roadNetwork;
-    (void) numCities;
-    return Nothing;
-}
+    if (numCities < 0) {
+        error("Number of cities cannot be negative");
+    }
 
+    std::function<Optional<Set<string>>(Set<string> uncovered, Set<string> supplySet, int citiesLeft)> helper;
+
+    helper = [&](Set<string> uncovered, Set<string> supplySet, int citiesLeft) -> Optional<Set<string>> {
+        if (uncovered.isEmpty()) {
+            return supplySet;
+        }
+
+        if (citiesLeft == 0) {
+            return Nothing;
+        }
+
+        string target = uncovered.first();
+        Set<string> options = roadNetwork[target] + target;
+
+        for (const string& option : options) {
+            Set<string> newSupplies = supplySet;
+            newSupplies += option;
+
+            Set<string> newlyCovered;
+            for (const string& city : uncovered) {
+                if (isCovered(city, roadNetwork, newSupplies)) {
+                    newlyCovered += city;
+                }
+            }
+
+            Set<string> nextUncovered = uncovered - newlyCovered;
+
+            Optional<Set<string>> result = helper(nextUncovered, newSupplies, citiesLeft - 1);
+            if (result != Nothing) {
+                return result;
+            }
+        }
+
+        return Nothing;
+    };
+
+    Set<string> allCities;
+    for (string city : roadNetwork.keys()) {
+        allCities += city;
+    }
+
+    return helper(allCities, {}, numCities);
+}
 
 /* * * * * * * Test Helper Functions Below This Point * * * * * */
 #include "GUI/SimpleTest.h"
@@ -51,7 +97,56 @@ bool isCovered(const string& city,
 
 /* TODO: Add your own custom tests here! */
 
+STUDENT_TEST("Works for two connected cities with 1 supply") {
+    Map<string, Set<string>> map = makeSymmetric({
+        { "A", {"B"} }
+    });
 
+    Optional<Set<string>> result = placeEmergencySupplies(map, 1);
+    EXPECT_NOT_EQUAL(result, Nothing);
+
+    EXPECT(isCovered("A", map, result.value()));
+    EXPECT(isCovered("B", map, result.value()));
+    EXPECT(result.value().size() <= 1);
+}
+
+STUDENT_TEST("Three cities in a line can be covered with 1 supply in the middle") {
+    Map<string, Set<string>> map = makeSymmetric({
+        { "A", {"B"} },
+        { "B", {"C"} }
+    });
+
+    Optional<Set<string>> result = placeEmergencySupplies(map, 1);
+    EXPECT_NOT_EQUAL(result, Nothing);
+    EXPECT(result.value().contains("B"));  // B must be the only city with supplies
+}
+
+STUDENT_TEST("Disconnected cities require one supply per city") {
+    Map<string, Set<string>> map = makeSymmetric({
+        { "A", {} },
+        { "B", {} },
+        { "C", {} }
+    });
+
+    EXPECT_EQUAL(placeEmergencySupplies(map, 2), Nothing); // Not enough
+    EXPECT_NOT_EQUAL(placeEmergencySupplies(map, 3), Nothing);
+    EXPECT_EQUAL(placeEmergencySupplies(map, 3), { "A", "B", "C" });
+}
+
+STUDENT_TEST("Triangle network should need only 1 supply") {
+    Map<string, Set<string>> map = makeSymmetric({
+        { "A", {"B"} },
+        { "B", {"C"} },
+        { "C", {"A"} }
+    });
+
+    Optional<Set<string>> result = placeEmergencySupplies(map, 1);
+    EXPECT_NOT_EQUAL(result, Nothing);
+
+    for (const string& city : {"A", "B", "C"}) {
+        EXPECT(isCovered(city, map, result.value()));
+    }
+}
 
 
 
